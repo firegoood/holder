@@ -23,7 +23,6 @@ from models import (
 
 router = Router()
 
-
 @router.callback_query(PagesCallbacks.filter(F.page.is_(PagesActions.UserCreate)))
 async def user_create(
     callback: CallbackQuery, callback_data: PagesCallbacks, state: FSMContext
@@ -176,54 +175,62 @@ async def user_create_inbounds(
 )
 async def user_create_inbounds_save(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    inbounds: dict[str, list[ProxyInbound]] = data.get("inbounds")
-    selected_inbounds = set(data.get("selected_inbounds", []))
+    
+    # تعریف گزینه‌های inbounds
+    inbounds_options = ["inbounds_All", "inbounds_MCI", "inbounds_MTN"]
+    
+    # کیبورد برای انتخاب
+    keyboard_markup = BotKeyboards.create_options_keyboard(inbounds_options)
+    
+    # ارسال پیام به کاربر برای انتخاب
+    await callback.message.answer(
+        text="لطفاً یکی از گزینه‌ها را انتخاب کنید:",
+        reply_markup=keyboard_markup
+    )
 
-    if not selected_inbounds:
-        return await callback.answer(
-            text=MessageTexts.NoneUserInbounds, show_alert=True
-        )
-
-    proxies = {
-        inbound["protocol"]: {}
-        for protocol_list in inbounds.values()
-        for inbound in protocol_list
-        if inbound["tag"] in selected_inbounds
-    }
-
-    inbounds_dict = {
-        protocol: [
-            inbound["tag"]
-            for inbound in protocol_list
-            if inbound["protocol"] == protocol and inbound["tag"] in selected_inbounds
-        ]
-        for protocol, protocol_list in inbounds.items()
-    }
-    inbounds_dict = {k: v for k, v in inbounds_dict.items() if v}
-
-    for i in range(int(data["how_much"])):
-        username = f"{data['base_username']}{int(data['start_number']) + i}"
-        new_user = await panel.create_user(
-            username=username,
-            status=data["status"],
-            proxies=proxies,
-            inbounds=inbounds_dict,
-            data_limit=data["data_limit"],
-            date_limit=data["date_limit"],
-        )
-
-        if new_user:
-            if data["admin"] != MARZBAN_USERNAME:
-                await panel.set_owner(data["admin"], new_user.username)
-            qr_bytes = await helpers.create_qr(new_user.subscription_url)
-            await callback.message.answer_photo(
-                caption=text_info.user_info(new_user),
-                photo=BufferedInputFile(qr_bytes, filename="qr_code.png"),
-                reply_markup=BotKeyboards.user(new_user)
-            )
-        else:
-            await callback.message.answer(
-                text=f"❌ Error <code>{username}</code> Create!"
+    # حالا در callback مربوط به انتخاب کاربر، مقدار انتخابی را ذخیره می‌کنیم
+    @router.callback_query(F.action.is_in(inbounds_options))
+    async def select_inbounds(callback: CallbackQuery, state: FSMContext):
+        inbounds_All:{"vmess": ["Info", "Wifi", "VMESS-MTN1", "VMESS-MTN2", "VMESS-MTN3", "VMESS-MTN4", "VMESS-MTN5", "VMESS-MTN6", "VMESS-MCI1", "VMESS-MCI2", "VMESS-MCI3", "VMESS-MCI4", "VMESS-MCI5", "VMESS-MCI6", "VMESS + TCP + Irancell", "VMESS + WS + TLS + Hamrah"], "vless": ["VLESS-MTN1", "VLESS-MTN2", "VLESS-MTN3", "VLESS-MTN4", "VLESS-MTN5", "VLESS-MTN6", "VLESS-MCI1", "VLESS-MCI2", "VLESS-MCI3", "VLESS-MCI4", "VLESS-MCI5", "VLESS-MCI6", "VL+GT+MCI"], "trojan": ["Trojan-MTN1", "Trojan-MTN2", "Trojan-MTN3", "Trojan-MTN4", "Trojan-MTN5", "Trojan-MCI1", "Trojan-MCI2", "Trojan-MCI3", "Trojan-MCI4", "Trojan-MCI5"], "shadowsocks": ["Shadowsocks-MCI1", "Shadowsocks-MCI2"]}
+        inbounds_MCI:{"vmess": ["Info", "Wifi", "VMESS-MCI1", "VMESS-MCI2", "VMESS-MCI3", "VMESS-MCI4", "VMESS-MCI5", "VMESS-MCI6", "VMESS + WS + TLS + Hamrah"], "vless": ["VLESS-MCI1", "VLESS-MCI2", "VLESS-MCI3", "VLESS-MCI4", "VLESS-MCI5", "VLESS-MCI6", "VL+GT+MCI"], "trojan": ["Trojan-MCI1", "Trojan-MCI2", "Trojan-MCI3", "Trojan-MCI4", "Trojan-MCI5"], "shadowsocks": ["Shadowsocks-MCI1", "Shadowsocks-MCI2"]}
+        inbounds_MTN:{"vmess": ["Info", "Wifi", "VMESS-MTN1", "VMESS-MTN2", "VMESS-MTN3", "VMESS-MTN4", "VMESS-MTN5", "VMESS-MTN6", "VMESS + TCP + Irancell"], "vless": ["VLESS-MTN1", "VLESS-MTN2", "VLESS-MTN3", "VLESS-MTN4", "VLESS-MTN5", "VLESS-MTN6"], "trojan": ["Trojan-MTN1", "Trojan-MTN2", "Trojan-MTN3", "Trojan-MTN4", "Trojan-MTN5"], "shadowsocks": ["Shadowsocks-MTN1", "Shadowsocks-MTN2"]}
+        selected_inbound = callback.data  # دریافت انتخاب کاربر
+        if selected_inbound not in inbounds_options:
+            return await callback.answer(
+                text=MessageTexts.NoneUserInbounds, show_alert=True
             )
 
-    await callback.message.delete()
+        # ذخیره انتخاب در متغیر inbounds_dict
+        if selected_inbound == "inbounds_All":
+            inbounds_dict = inbounds_All  # فرض بر این است که inbounds_All قبلاً تعریف شده است
+        elif selected_inbound == "inbounds_MCI":
+            inbounds_dict = inbounds_MCI  # فرض بر این است که inbounds_MCI قبلاً تعریف شده است
+        elif selected_inbound == "inbounds_MTN":
+            inbounds_dict = inbounds_MTN  # فرض بر این است که inbounds_MTN قبلاً تعریف شده است
+
+        for i in range(int(data["how_much"])):
+            username = f"{data['base_username']}{int(data['start_number']) + i}"
+            new_user = await panel.create_user(
+                username=username,
+                status=data["status"],
+                proxies=proxies,
+                inbounds=inbounds_dict,
+                data_limit=data["data_limit"],
+                date_limit=data["date_limit"],
+            )
+
+            if new_user:
+                if data["admin"] != MARZBAN_USERNAME:
+                    await panel.set_owner(data["admin"], new_user.username)
+                qr_bytes = await helpers.create_qr(new_user.subscription_url)
+                await callback.message.answer_photo(
+                    caption=text_info.user_info(new_user),
+                    photo=BufferedInputFile(qr_bytes, filename="qr_code.png"),
+                    reply_markup=BotKeyboards.user(new_user)
+                )
+            else:
+                await callback.message.answer(
+                    text=f"❌ Error <code>{username}</code> Create!"
+                )
+
+        await callback.message.delete()
