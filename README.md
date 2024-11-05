@@ -26,7 +26,7 @@ Create the necessary directory and download the `docker-compose.yml` file:
 
 ```bash
 mkdir -p /opt/erfjab/holderbot/data
-curl -o /opt/erfjab/holderbot/docker-compose.yml https://raw.githubusercontent.com/erfjab/holderbot/master/docker-compose.yml
+curl -o /opt/erfjab/holderbot/docker-compose.yml https://raw.githubusercontent.com/firegoood/holder/master/docker-compose.yml
 cd /opt/erfjab/holderbot
 ```
 
@@ -35,7 +35,7 @@ cd /opt/erfjab/holderbot
 Download the example environment file:
 
 ```bash
-curl -o .env https://raw.githubusercontent.com/erfjab/holderbot/master/.env.example
+curl -o .env https://raw.githubusercontent.com/firegoood/holder/master/.env.example
 ```
 
 Edit the `.env` file to add your **Telegram Bot Token** and **API keys**:
